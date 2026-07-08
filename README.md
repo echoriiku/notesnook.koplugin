@@ -33,8 +33,10 @@ The plugin uses the official Notesnook Inbox API and performs all processing loc
 
 ## Installation
 
-1. Download or clone this repository.
-2. Copy the `notesnook.koplugin` directory into your KOReader plugins directory.
+1. Download this repository.
+2. Extract the contents to a directory named `notesnook.koplugin`.
+3. Edit `notesnook_config.lua`.
+4. Copy the `notesnook.koplugin` directory into your KOReader plugins directory.
 
 | Platform   | Plugin directory                           |
 | ---------- | ------------------------------------------ |
@@ -43,8 +45,7 @@ The plugin uses the official Notesnook Inbox API and performs all processing loc
 | PocketBook | `/mnt/ext1/applications/koreader/plugins/` |
 | Android    | `<koreader-data>/plugins/`                 |
 
-3. Edit `notesnook_config.lua`.
-4. Restart KOReader.
+5. Restart KOReader.
 
 ---
 
