@@ -120,6 +120,11 @@ Each exported note includes:
 * Annotation notes
 * Highlight colors
 
+## Screenshots
+<img width="800" alt="Screenshot 2026-07-08 at 13-58-34 Notesnook" src="https://github.com/user-attachments/assets/d32f2fbc-bbab-48d9-b9b6-03b4ec8d5005" />
+<img width="800" alt="Screenshot 2026-07-08 at 13-58-44 Notesnook" src="https://github.com/user-attachments/assets/ef66ae26-9907-4d42-b29e-9b3cf10dd89b" />
+<img width="800" alt="Screenshot 2026-07-08 at 13-59-00 Notesnook" src="https://github.com/user-attachments/assets/17ce8083-9a0f-4d88-9988-b107e7128670" />
+
 ---
 
 ## Supported Formats
