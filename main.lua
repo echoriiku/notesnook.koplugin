@@ -2,7 +2,7 @@
     notesnook.koplugin/main.lua
 
     Sends book metadata, cover, stats (from SQLite), and highlights to Notesnook.
-    Triggers: 
+    Triggers:
       - Long-press a book in the File Manager → "Send to Notesnook".
       - Assignable gesture in Reader view.
 --]]
@@ -27,11 +27,22 @@ local T               = require("ffi/util").template
 -- ---------------------------------------------------------------------------
 
 local BOOK_EXTENSIONS = {
-    epub=true, pdf=true, mobi=true, azw=true, azw3=true, fb2=true,
-    cbz=true, cbr=true, djvu=true, txt=true, html=true, htm=true, docx=true,
+    epub = true,
+    pdf = true,
+    mobi = true,
+    azw = true,
+    azw3 = true,
+    fb2 = true,
+    cbz = true,
+    cbr = true,
+    djvu = true,
+    txt = true,
+    html = true,
+    htm = true,
+    docx = true,
 }
 
-local COLOR_MAP = {
+local COLOR_MAP       = {
     yellow = "#ffd700",
     green  = "#32cd32",
     blue   = "#1e90ff",
@@ -45,16 +56,22 @@ local COLOR_MAP = {
 -- Load user config
 -- ---------------------------------------------------------------------------
 
-local config_path = DataStorage.getDataDir()
+local config_path     = DataStorage.getDataDir()
     .. "/plugins/notesnook.koplugin/notesnook_config.lua"
-local ok, cfg = pcall(dofile, config_path)
+local ok, cfg         = pcall(dofile, config_path)
 if not ok then
     local plugin_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
     ok, cfg = pcall(dofile, plugin_dir .. "notesnook_config.lua")
 end
 if not ok or type(cfg) ~= "table" then
-    cfg = { api_key = "", notebook_id = "", tag_ids = {},
-            confirm_before_send = true, favorite = false, readonly = false }
+    cfg = {
+        api_key = "",
+        notebook_id = "",
+        tag_ids = {},
+        confirm_before_send = true,
+        favorite = false,
+        readonly = false
+    }
     logger.warn("Notesnook: config not found or invalid; using defaults.")
 end
 
@@ -62,7 +79,7 @@ end
 -- Plugin class
 -- ---------------------------------------------------------------------------
 
-local Notesnook = WidgetContainer:extend{
+local Notesnook = WidgetContainer:extend {
     name = "notesnook",
 }
 
@@ -104,11 +121,11 @@ local function formatDurationCompact(seconds)
 end
 
 local function formatAvgPageTime(seconds)
-     if not seconds or seconds == 0 then return "0s" end
-     local m = math.floor(seconds / 60)
-     local s = math.floor(seconds % 60)
-     if m > 0 then return string.format("%dm %ds", m, s) end
-     return string.format("%ds", s)
+    if not seconds or seconds == 0 then return "0s" end
+    local m = math.floor(seconds / 60)
+    local s = math.floor(seconds % 60)
+    if m > 0 then return string.format("%dm %ds", m, s) end
+    return string.format("%ds", s)
 end
 
 local function formatDate(iso_date)
@@ -159,21 +176,24 @@ local function formatRange(first_page, last_page, max_page)
     if first_page and last_page then
         if first_page == last_page then return tostring(first_page) end
         return string.format("%d-%d", first_page, last_page)
-    elseif first_page then return tostring(first_page)
-    elseif last_page then return tostring(last_page) end
+    elseif first_page then
+        return tostring(first_page)
+    elseif last_page then
+        return tostring(last_page)
+    end
     return "-"
 end
 
 local function extractEpubCover(epub_path)
     if not epub_path:lower():match("%.epub$") then return nil end
     local safe_epub = shellEscape(epub_path)
-    
+
     local p = io.popen('unzip -l ' .. safe_epub .. ' 2>/dev/null')
     if not p then return nil end
-    
+
     local opf_path
     local image_files = {}
-    
+
     for line in p:lines() do
         local file = line:match("%d%d:%d%d%s+(.+)$")
         if file then
@@ -186,22 +206,22 @@ local function extractEpubCover(epub_path)
         end
     end
     p:close()
-    
+
     local target_cover_file
-    
+
     if opf_path then
         local safe_opf = shellEscape(opf_path)
         local p2 = io.popen('unzip -p ' .. safe_epub .. ' ' .. safe_opf .. ' 2>/dev/null')
         if p2 then
             local opf_content = p2:read("*a")
             p2:close()
-            
+
             local cover_href
             cover_href = opf_content:match('<item[^>]+properties="[^"]*cover-image[^"]*"[^>]+href="([^"]+)"')
             if not cover_href then
                 cover_href = opf_content:match('<item[^>]+href="([^"]+)"[^>]+properties="[^"]*cover-image[^"]*"')
             end
-            
+
             if not cover_href then
                 local cover_id = opf_content:match('<meta[^>]+name="cover"[^>]+content="([^"]+)"')
                 if not cover_id then
@@ -215,17 +235,17 @@ local function extractEpubCover(epub_path)
                     end
                 end
             end
-            
+
             if cover_href then
                 cover_href = cover_href:gsub("%%20", " ")
                 local opf_dir = opf_path:match("(.*/)") or ""
                 local resolved_path = opf_dir .. cover_href
-                
+
                 resolved_path = resolved_path:gsub("%./", "")
                 while resolved_path:match("/[^/]+/%.%./") do
                     resolved_path = resolved_path:gsub("/[^/]+/%.%./", "/")
                 end
-                
+
                 if image_files[resolved_path] then
                     target_cover_file = resolved_path
                 else
@@ -240,14 +260,14 @@ local function extractEpubCover(epub_path)
             end
         end
     end
-    
+
     if not target_cover_file then
         local best_score = -1
         for file in pairs(image_files) do
             local lf = file:lower()
             local filename = lf:match("[^/]+$") or lf
             local score = 0
-            
+
             if filename:match("^cover%.") then
                 score = 100
             elseif filename:match("cover") then
@@ -265,29 +285,29 @@ local function extractEpubCover(epub_path)
             else
                 score = 5
             end
-            
+
             local _, depth = lf:gsub("/", "")
             score = score - (depth * 0.1)
-            
+
             if score > best_score then
                 best_score = score
                 target_cover_file = file
             end
         end
     end
-    
+
     if target_cover_file then
         local safe_cover = shellEscape(target_cover_file)
         local p3 = io.popen('unzip -p ' .. safe_epub .. ' ' .. safe_cover .. ' 2>/dev/null')
         if p3 then
             local content = p3:read("*a")
             p3:close()
-            
+
             if content and #content > 0 then
                 local ok_mime, mime = pcall(require, "mime")
                 if ok_mime and mime.b64 then
                     local b64 = mime.b64(content)
-                    content = nil 
+                    content = nil
                     local mime_type = target_cover_file:lower():match("%.png$") and "image/png" or "image/jpeg"
                     return string.format('<img src="data:%s;base64,%s" />', mime_type, b64)
                 end
@@ -309,7 +329,8 @@ local function getBookDbStats(book_path, ds, title)
 
     local stats = nil
     local success, err = pcall(function()
-        local stmt = conn:prepare("SELECT id, total_read_time, total_read_pages FROM book WHERE (title = ? AND md5 = ?) OR md5 = ? LIMIT 1")
+        local stmt = conn:prepare(
+        "SELECT id, total_read_time, total_read_pages FROM book WHERE (title = ? AND md5 = ?) OR md5 = ? LIMIT 1")
         local res = stmt:reset():bind(title or "", md5, md5):step()
 
         if not res then
@@ -403,8 +424,9 @@ local function getBookDbStats(book_path, ds, title)
                 local r_page = tonumber(raw_res.page[i])
                 local r_dur  = tonumber(raw_res.duration[i]) or 0
 
-                local split = false
-                if not current then split = true
+                local split  = false
+                if not current then
+                    split = true
                 else
                     local gap = r_time - current.last_time
                     if r_date ~= current.date or gap > 1800 then split = true end
@@ -439,8 +461,11 @@ local function getBookDbStats(book_path, ds, title)
         if #valid_durations > 0 then
             table.sort(valid_durations)
             local mid = #valid_durations
-            if mid % 2 == 1 then med_session = valid_durations[(mid+1)/2]
-            else med_session = (valid_durations[mid/2] + valid_durations[mid/2+1]) / 2 end
+            if mid % 2 == 1 then
+                med_session = valid_durations[(mid + 1) / 2]
+            else
+                med_session = (valid_durations[mid / 2] + valid_durations[mid / 2 + 1]) / 2
+            end
         end
 
         stats = {
@@ -470,9 +495,9 @@ end
 -- ---------------------------------------------------------------------------
 
 local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats)
-    local title  = htmlEscape(props.title   or "Unknown Title")
-    local author = htmlEscape(props.authors or props.author or "Unknown Author")
-    
+    local title        = htmlEscape(props.title or "Unknown Title")
+    local author       = htmlEscape(props.authors or props.author or "Unknown Author")
+
     local series_block = ""
     if props.series and props.series ~= "" then
         local s_idx = props.series_index and tonumber(props.series_index)
@@ -482,7 +507,7 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
             series_block = string.format("<li><strong>Series:</strong> %s</li>", htmlEscape(props.series))
         end
     end
-    
+
     local publisher_block = ""
     if props.publisher and props.publisher ~= "" then
         publisher_block = string.format("<li><strong>Publisher:</strong> %s</li>", htmlEscape(props.publisher))
@@ -491,7 +516,7 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
     local start_str = stats and stats.start_ts and os.date("%d %b %Y", stats.start_ts) or "Unknown"
     local finish_str = stats and stats.finish_ts and os.date("%d %b %Y", stats.finish_ts) or "Unknown"
     local active_days = stats and stats.active_days or 0
-    
+
     local span_days = 0
     if stats and stats.start_ts and stats.finish_ts then
         span_days = math.floor((stats.finish_ts - stats.start_ts) / 86400) + 1
@@ -500,7 +525,7 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
     local read_time = stats and stats.read_time or 0
     local read_pages = stats and stats.read_pages or 0
     local actual_time = stats and stats.actual_reading_time or 0
-    
+
     local speed_str = "N/A"
     local avg_page_str = "N/A"
     local progress_efficiency = "0.00"
@@ -508,7 +533,7 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
         local pph = (read_pages * 3600) / read_time
         speed_str = string.format("%d pages/hour", math.floor(pph))
         avg_page_str = formatAvgPageTime(read_time / read_pages)
-        
+
         local total_prog = (stats.timeline and stats.timeline[1] and stats.timeline[1].progress) or 0
         progress_efficiency = string.format("%.2f", (total_prog * 100) / (read_time / 3600))
     end
@@ -520,13 +545,13 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
         daily_avg_pages_str = string.format("%.1f pages", read_pages / active_days)
     end
 
-    local med_session_str = (stats and stats.med_session_seconds and stats.med_session_seconds > 0) 
-                            and formatDuration(stats.med_session_seconds) or "N/A"
+    local med_session_str = (stats and stats.med_session_seconds and stats.med_session_seconds > 0)
+        and formatDuration(stats.med_session_seconds) or "N/A"
     local avg_sess_pg_str = (stats and stats.avg_session_pages and stats.avg_session_pages > 0)
-                            and string.format("%.1f pages", stats.avg_session_pages) or "N/A"
+        and string.format("%.1f pages", stats.avg_session_pages) or "N/A"
 
     local cover_block = cover_html and (cover_html .. "\n<br />\n") or ""
-    
+
     local desc_block = ""
     if props.description and props.description ~= "" then
         local cleaned_desc = stripHtml(props.description)
@@ -537,7 +562,7 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
             </details>
         ]], htmlEscape(cleaned_desc))
     end
-    
+
     local card_html = string.format([[
         <h2>Reading Dashboard</h2>
         <ul>
@@ -552,8 +577,8 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
             <li><strong>Pace Speed:</strong> %s (&bull; %s per page)</li>
             <li><strong>Progress Efficiency:</strong> %s%% progress / hour</li>
         </ul>
-    ]], rating_stars, series_block, publisher_block, start_str, finish_str, span_days, active_days, 
-        daily_avg_time_str, daily_avg_pages_str, med_session_str, avg_sess_pg_str, 
+    ]], rating_stars, series_block, publisher_block, start_str, finish_str, span_days, active_days,
+        daily_avg_time_str, daily_avg_pages_str, med_session_str, avg_sess_pg_str,
         formatDuration(read_time), formatDuration(actual_time), speed_str, avg_page_str, progress_efficiency)
 
     local timeline_rows = {}
@@ -561,7 +586,7 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
         for _, item in ipairs(stats.timeline) do
             local day_speed = formatSpeed(item.pages, item.duration)
             day_speed = (day_speed ~= "-") and (day_speed .. " pg/h") or "-"
-            
+
             table.insert(timeline_rows, string.format([[
                 <tr>
                     <td style="padding: 6px; border: 1px solid #ddd;">%s</td>
@@ -609,7 +634,8 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
             local loc = ann.pageno and (" | Page " .. ann.pageno) or ""
             local chapter = (ann.chapter and ann.chapter ~= "") and (" | " .. htmlEscape(ann.chapter)) or ""
             local note_html = (ann.notes and ann.notes ~= "") and
-                ("<div style='margin-top: 5px; color: #555; font-style: italic;'><em>" .. htmlEscape(ann.notes) .. "</em></div>") or ""
+                ("<div style='margin-top: 5px; color: #555; font-style: italic;'><em>" .. htmlEscape(ann.notes) .. "</em></div>") or
+                ""
 
             local border_color = "#ccc"
             if ann.color and COLOR_MAP[ann.color:lower()] then
@@ -626,9 +652,10 @@ local function buildNoteHtml(props, annotations, rating_stars, cover_html, stats
         end
     end
 
-    local highlights_compiled = #hl_lines > 0 and table.concat(hl_lines, "\n") or "<p><em>No highlights recorded.</em></p>"
+    local highlights_compiled = #hl_lines > 0 and table.concat(hl_lines, "\n") or
+    "<p><em>No highlights recorded.</em></p>"
 
-    return string.format("<h1>%s</h1><p><em>by %s</em></p>\n%s\n%s\n%s\n%s<hr /><h2>Highlights & Notes</h2>\n%s", 
+    return string.format("<h1>%s</h1><p><em>by %s</em></p>\n%s\n%s\n%s\n%s<hr /><h2>Highlights & Notes</h2>\n%s",
         title, author, cover_block, card_html, desc_block, timeline_block, highlights_compiled)
 end
 
@@ -643,9 +670,9 @@ local function sendToNotesnook(note_title, html_body, on_success, on_error)
     end
 
     NetworkMgr:runWhenOnline(function()
-        local http  = require("socket.http")
-        local ltn12 = require("ltn12")
-        
+        local http                = require("socket.http")
+        local ltn12               = require("ltn12")
+
         local json_engine
         local ok_rapid, rapidjson = pcall(require, "rapidjson")
         if ok_rapid and rapidjson.encode then
@@ -676,16 +703,16 @@ local function sendToNotesnook(note_title, html_body, on_success, on_error)
         end
 
         local response_body = {}
-        local ok2, code = http.request{
-            url    = "https://inbox.notesnook.com/",
-            method = "POST",
+        local ok2, code = http.request {
+            url     = "https://inbox.notesnook.com/",
+            method  = "POST",
             headers = {
                 ["Content-Type"]   = "application/json",
                 ["Authorization"]  = cfg.api_key,
                 ["Content-Length"] = tostring(#payload),
             },
-            source = ltn12.source.string(payload),
-            sink   = ltn12.sink.table(response_body),
+            source  = ltn12.source.string(payload),
+            sink    = ltn12.sink.table(response_body),
         }
 
         local body = table.concat(response_body)
@@ -709,7 +736,7 @@ function Notesnook:sendBook(book_path, doc_settings)
     if not book_path then return end
 
     if not cfg.api_key or cfg.api_key == "" then
-        UIManager:show(InfoMessage:new{
+        UIManager:show(InfoMessage:new {
             text = _("Notesnook Sync Error:\nYour API key is empty.\n\nPlease edit your configuration file under:\nnotesnook.koplugin/notesnook_config.lua"),
             timeout = 10
         })
@@ -721,17 +748,17 @@ function Notesnook:sendBook(book_path, doc_settings)
         ds = DocSettings:open(book_path)
     end
 
-    local props       = (ds and ds:readSetting("doc_props"))   or {}
+    local props       = (ds and ds:readSetting("doc_props")) or {}
     local annotations = (ds and ds:readSetting("annotations"))
-                     or (ds and ds:readSetting("bookmarks"))
-                     or {}
-                     
-    local title      = props.title   or book_path:match("[^/\\]+$") or "Unknown"
-    local author     = props.authors or props.author or "Unknown Author"
-    local note_title = title .. " - " .. author
+        or (ds and ds:readSetting("bookmarks"))
+        or {}
+
+    local title       = props.title or book_path:match("[^/\\]+$") or "Unknown"
+    local author      = props.authors or props.author or "Unknown Author"
+    local note_title  = title .. " - " .. author
 
     local function processAndSend()
-        local sending_msg = InfoMessage:new{ text = _("Processing & Sending...") }
+        local sending_msg = InfoMessage:new { text = _("Processing & Sending...") }
         UIManager:show(sending_msg)
         UIManager:forceRePaint()
 
@@ -740,14 +767,14 @@ function Notesnook:sendBook(book_path, doc_settings)
             local rating_val   = summary and tonumber(summary.rating) or 0
             local rating_stars = rating_val > 0 and string.rep("★", math.floor(rating_val)) or "Unrated"
 
-            local db_stats = getBookDbStats(book_path, ds, props.title)
-            local cover_html = extractEpubCover(book_path)
-            local html_body  = buildNoteHtml(props, annotations, rating_stars, cover_html, db_stats)
+            local db_stats     = getBookDbStats(book_path, ds, props.title)
+            local cover_html   = extractEpubCover(book_path)
+            local html_body    = buildNoteHtml(props, annotations, rating_stars, cover_html, db_stats)
 
             sendToNotesnook(note_title, html_body,
                 function()
                     UIManager:close(sending_msg)
-                    UIManager:show(InfoMessage:new{
+                    UIManager:show(InfoMessage:new {
                         text    = T(_("Sent to Notesnook:\n%1"), note_title),
                         timeout = 7,
                     })
@@ -757,7 +784,7 @@ function Notesnook:sendBook(book_path, doc_settings)
                 end,
                 function(err)
                     UIManager:close(sending_msg)
-                    UIManager:show(InfoMessage:new{
+                    UIManager:show(InfoMessage:new {
                         text    = T(_("Notesnook error:\n%1"), tostring(err)),
                         timeout = 7,
                     })
@@ -773,24 +800,24 @@ function Notesnook:sendBook(book_path, doc_settings)
         local summary      = ds and ds:readSetting("summary")
         local rating_val   = summary and tonumber(summary.rating) or 0
         local rating_stars = rating_val > 0 and string.rep("★", math.floor(rating_val)) or "Unrated"
-        
-        local db_stats = getBookDbStats(book_path, ds, props.title)
-        local start_str = db_stats and db_stats.start_ts and os.date("%d %b %Y", db_stats.start_ts) or "Unknown"
-        local finish_str = db_stats and db_stats.finish_ts and os.date("%d %b %Y", db_stats.finish_ts) or "Unknown"
-        
-        local span_days = 0
+
+        local db_stats     = getBookDbStats(book_path, ds, props.title)
+        local start_str    = db_stats and db_stats.start_ts and os.date("%d %b %Y", db_stats.start_ts) or "Unknown"
+        local finish_str   = db_stats and db_stats.finish_ts and os.date("%d %b %Y", db_stats.finish_ts) or "Unknown"
+
+        local span_days    = 0
         if db_stats and db_stats.start_ts and db_stats.finish_ts then
             span_days = math.floor((db_stats.finish_ts - db_stats.start_ts) / 86400) + 1
         end
-        
+
         local dates_val = "Unknown"
         if db_stats and db_stats.start_ts and db_stats.finish_ts then
             dates_val = string.format("%s - %s (%d days)", start_str, finish_str, span_days)
         end
 
         -- Standard fully compatible dingbats: ❑ (Shadowed Square), ❖ (Diamond), ★ (Star), ‣ (Triangle bullet)
-        UIManager:show(ConfirmBox:new{
-            text = T(
+        UIManager:show(ConfirmBox:new {
+            text        = T(
                 _("Send book note to Notesnook?\n\n"
                     .. "❑ Title: %1\n"
                     .. "❖ Highlights: %2\n"
@@ -826,7 +853,7 @@ function Notesnook:onNotesnookSync()
         local doc_settings = self.ui.doc_settings
         self:sendBook(file, doc_settings)
     else
-        UIManager:show(InfoMessage:new{
+        UIManager:show(InfoMessage:new {
             text = _("Please open a book first to sync it to Notesnook."),
         })
     end
@@ -879,7 +906,7 @@ function Notesnook:addToMainMenu(menu_items)
             {
                 text = _("About"),
                 callback = function()
-                    UIManager:show(InfoMessage:new{
+                    UIManager:show(InfoMessage:new {
                         text = _(
                             "Notesnook Sync\n\n"
                             .. "Long-press any book in the library\n"
